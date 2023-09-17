@@ -32,7 +32,7 @@ OSError: [Errno Connection error (RAYKE.LOCAL:88)]
 
 Surprisingly, CME makes another request to the KDC to obtain additional information prior to authentication. Since we did not provide CME where to locate the KDC the authentication fails.
 
-## What did this fail?
+## Why did this fail?
 
 When we requested a TGT, `getTGT.py` made an Authentication Service Request (AS-REQ) to the KDC. This request includes a Client Name (cname) and Service Name (sname). In this case the cname would be `skyler.knecht` and the service name would be `krbtgt/rayke.local`. 
 
@@ -51,7 +51,7 @@ Upon successful decryption, The KDC made an Authentication Service Response (AS-
 
 Unlike NTLM, we cannot use our credentials, the TGT, to directly authenticate to a service. Instead we need to use a Service Ticket (ST). CME identifies this an attempts to request a ST from the KDC. However, CME cannot locate the KDC and the authentication fails. 
 
-## How do we obtain a Service Ticket
+## How do we obtain a Service Ticket?
 
 We can request a ST by making an AS-REQ with the sname set to the target service.
 
