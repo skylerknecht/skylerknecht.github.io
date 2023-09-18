@@ -49,10 +49,7 @@ The KDC processed the PA-authentication data by decrypting the timestamp using t
 
 Upon successful decryption, The KDC made an Authentication Service Response (AS-REP) with a TGT and session key appended. `getTGT.py` processes this response and writes the ccache file, `skyler.knecht.ccache`, containing our TGT to disk.
 
-> The TGT contains information such as the client's groups and is encrypted with the KDC's kerberos secret to prevent the user from tampering with the data. This secret is typical the krbtgt user's password.
-{: .prompt-info }
-
-Unlike NTLM, we cannot use our credentials, the TGT, to directly authenticate to a service. Instead we need to use a Service Ticket (ST). CME identifies this an attempts to request a ST from the KDC. However, CME cannot locate the KDC and the authentication fails. 
+Unlike NTLM, we cannot use our credentials, the TGT, to directly authenticate to a service. Instead we need to use our TGT to obtain a Service Ticket (ST). CME identifies this an attempts to request a ST from the KDC. However, CME cannot locate the KDC and the authentication fails. 
 
 ## How do we obtain a Service Ticket?
 
@@ -89,9 +86,13 @@ To obtain a Service Ticket, `getST.py` made an Ticket Granting Service Request (
 
 The authenticator is the session key from the AS-REP encrypted with our kerberos secret. 
 
-To verify the authenticity of the request, the KDC will begin by decrypting the authenticator with the client's kerberos secret and the TGT with the KDC's secret. The KDC will recover a session key from both the authenticator and the TGT. If the session keys are the same then the request is authentic.
+The TGT is a session key along with other metadata encrypted with the KDC's kerberos secret, typically the krbtgt user's password.
 
-Once authenticated, the KDC will create a ST for the sname we provided and a session key. The ST is encrypted with the service's kerberos secret. In this case `ws01$@rayke.local`. Once encrypted the KDC will make an TGS-REP. The contents of this response are both the session key and ST encrypted with the user's kerberos secret. 
+The sname is the SPN of the service that we're authenticating to. 
+
+To verify the authenticity of the request, the KDC will begin by decrypting both the authenticator and TGT recovering a session key from both. If the session keys are the same then the request is authentic.
+
+Once authenticated, the KDC will create a ST for the sname we provided and a session key. The ST contains information from the TGT along with other meta data such as the user's groups. The ST is encrypted with the service owner's kerberos secret. In this case `ws01$@rayke.local`. Once encrypted the KDC will make an TGS-REP. The contents of this response are both the session key and ST encrypted with the user's kerberos secret. 
 
 `getTGT.py` processes this response and writes the ccache to disk. We can assign this to the `KRB5CCNAME` environment variable and successfully authenticate to the service. 
 
