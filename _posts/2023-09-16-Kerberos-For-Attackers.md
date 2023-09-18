@@ -103,7 +103,7 @@ SMB         ws01.rayke.local 445    WS01             [*] Windows 10.0 Build 1904
 SMB         ws01.rayke.local 445    WS01             [+] rayke.local\skyler.knecht (Pwn3d!)
 ```
 
-Thankfully, most tools will automated ST-requesting process given a TGT and the location of the KDC. We can provide CME with the command line argument, `--kdcHost` to achieve this.
+Thankfully, most tools will automate the ST-requesting process given a TGT and the location of the KDC. We can provide CME with the command line argument, `--kdcHost` to achieve this.
 
 ```
 skyler@debian:~$ crackmapexec smb ws01.rayke.local -k --kdcHost 192.168.1.200
