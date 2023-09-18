@@ -49,6 +49,9 @@ The KDC processed the PA-authentication data by decrypting the timestamp using t
 
 Upon successful decryption, The KDC made an Authentication Service Response (AS-REP) with a TGT and session key appended. `getTGT.py` processes this response and writes the ccache file, `skyler.knecht.ccache`, containing our TGT to disk.
 
+> The TGT contains information such as the client's groups and is encrypted with the KDC's kerberos secret to prevent the user from tampering with the data. This secret is typical the krbtgt user's password.
+{: .prompt-info }
+
 Unlike NTLM, we cannot use our credentials, the TGT, to directly authenticate to a service. Instead we need to use a Service Ticket (ST). CME identifies this an attempts to request a ST from the KDC. However, CME cannot locate the KDC and the authentication fails. 
 
 ## How do we obtain a Service Ticket?
@@ -75,17 +78,18 @@ This is inefficient as we'll need to obtain a new TGT for every ST. This include
 
 Alternatively, we can negotiate with the Key Distribution Center's (KDCs) Ticket Granting Service (TGS) with a tool such as [getST.py](https://github.com/fortra/impacket/blob/master/examples/getST.py) from the Impacket suite.
 
-This permits us to request STs up to the expiration date of our TGT skipping the TGT-generation process. 
 
 ```console
 getST.py rayke.local/skyler.knecht -spn host/ws01.rayke.local -k -no-pass -dc-ip 192.168.1.200
 ```
 
+This permits us to request STs up to the expiration date of our TGT skipping the TGT-generation process. 
+
 To obtain a Service Ticket, `getST.py` made an Ticket Granting Service Request (TGS-REQ). This request includes an authenticator, our TGT and the sname, `host/ws01.rayke.local`. 
 
 The authenticator is the session key from the AS-REP encrypted with our kerberos secret. 
 
-To verify the authenticity of the request, the KDC will compare the session key within the authenticator and the TGT. If the session keys are the same then the request is authentic. 
+To verify the authenticity of the request, the KDC will begin by decrypting the authenticator with the client's kerberos secret and the TGT with the KDC's secret. The KDC will recover a session key from both the authenticator and the TGT. If the session keys are the same then the request is authentic.
 
 Once authenticated, the KDC will create a ST for the sname we provided and a session key. The ST is encrypted with the service's kerberos secret. In this case `ws01$@rayke.local`. Once encrypted the KDC will make an TGS-REP. The contents of this response are both the session key and ST encrypted with the user's kerberos secret. 
 
@@ -94,6 +98,14 @@ Once authenticated, the KDC will create a ST for the sname we provided and a ses
 ```
 skyler@debian:~$ export KRB5CCNAME=skyler.knecht@host_ws01.rayke.local@RAYKE.LOCAL.ccache
 skyler@debian:~$ crackmapexec smb ws01.rayke.local -k
+SMB         ws01.rayke.local 445    WS01             [*] Windows 10.0 Build 19041 x64 (name:WS01) (domain:rayke.local) (signing:False) (SMBv1:False)
+SMB         ws01.rayke.local 445    WS01             [+] rayke.local\skyler.knecht (Pwn3d!)
+```
+
+Thankfully, most tools will automated ST-requesting process given a TGT and the location of the KDC. We can provide CME with the command line argument, `--kdcHost` to achieve this.
+
+```
+skyler@debian:~$ crackmapexec smb ws01.rayke.local -k --kdcHost 192.168.1.200
 SMB         ws01.rayke.local 445    WS01             [*] Windows 10.0 Build 19041 x64 (name:WS01) (domain:rayke.local) (signing:False) (SMBv1:False)
 SMB         ws01.rayke.local 445    WS01             [+] rayke.local\skyler.knecht (Pwn3d!)
 ```
