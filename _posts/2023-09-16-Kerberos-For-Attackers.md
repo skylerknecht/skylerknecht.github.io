@@ -113,7 +113,7 @@ SMB         ws01.rayke.local 445    WS01             [+] rayke.local\skyler.knec
 
 ## What about authorization?
 
-The Kerberos protocol provides a means of verifying the authenticity  principals and relies on the service to verify the principals authorization. CrackMapExec will use our ccache file to make an Application Server Request (AS-REQ) to the service. This request contains our ST and an authenticator. 
+The Kerberos protocol provides a means of verifying the authenticity principals and relies on the service for authorization. CrackMapExec will use our ccache file to make an Application Server Request (AS-REQ) to the service. This request contains our ST and an authenticator. 
 
 The authenticator contains metadata such as a sequence number and is encrypted with the session key obtained from the TGS-REP. 
 
