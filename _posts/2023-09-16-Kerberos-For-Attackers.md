@@ -1,18 +1,35 @@
-As a domain user we need to access resources within the environment. These resources are available via services such as HTTP, SMB, and LDAP. Active Directory (AD) uses Kerberos to manage authentication to these services. 
+As a domain user we need to access resources within the environment. These resources are available via services such as HTTP, SMB, and LDAP. Primarily, Active Directory (AD) uses Kerberos to manage authentication to these services. 
 
-## Example
+## An Example That Fails
 
 We're the domain user, `skyler.knecht@rayke.local`, and we would like to authenticate to the SMB service on `ws01.rayke.local`.
 
-Typically we'd authenticate with plaintext credentials when using the NTLM protocol, however, with Kerberos we'll need a Ticket Granting Ticket (TGT).
+We could use the NTLM protocol to authenticate with plaintext credentials, however, with Kerberos our credentials will be a Ticket Granting Ticket (TGT).
 
-To obtain a TGT we must negotiate with the Key Distribution Center's (KDCs) Authentication Service (AS) with a tool such as [getTGT.py](https://github.com/fortra/impacket/blob/master/examples/getTGT.py) from the Impacket suite.
+To obtain a TGT we must negotiate with a Key Distribution Center's (KDC) Authentication Service (AS). Thankfully a tool such as, [getTGT.py](https://github.com/fortra/impacket/blob/master/examples/getTGT.py), will automate the negotiation process.
 
 ```console
 getTGT.py rayke.local/skyler.knecht:Password1! -dc-ip 192.168.1.200 
 ```
 
-This will generate a ccache file entitled, `skyler.knecht.ccache`. We can use this file to authenticate by assigning it to the environment variable `KRB5CCNAME` and using a "Kerberos aware" tool such as [CrackMapExec](https://github.com/Porchetta-Industries/CrackMapExec) (CME).
+The negotiation begins by first performing a Authentication Service Request (AS-REQ). This request includes a Client Name (cname) and Service Name (sname). In this case the cname would be `skyler.knecht` and the service name would be `krbtgt/rayke.local`. 
+
+The KDC processes this information and determines that pre authentication is required, thus makes an Authentication Service Response (AS-REP) with the error, `KRB5KDC_ERR_PREAUTH_REQUIRED`.
+
+Pre Authentication data (PA-data) is a timestamp encrypted with the client's kerberos secret, typically the user's password. 
+
+`getTGT.py` uses the plaintext credentials we provided and makes another AS-REQ with the PA-data appended. 
+
+The KDC processes the PA-authentication data by decrypting the timestamp using the client's kerberos secret.
+
+> Since a KDC requires access to the client's kerberos secret it is typically located on a Domain Controller. 
+{: .prompt-info }
+
+Upon successful decryption, The KDC makes an Authentication Service Response (AS-REP) with a TGT and session key appended. `getTGT.py` processes this response and writes the ccache file, `skyler.knecht.ccache`, containing our TGT to disk.
+
+We can use this file to authenticate by assigning it to the environment variable, `KRB5CCNAME`, and using a "Kerberos aware" tool such as, [CrackMapExec](https://github.com/Porchetta-Industries/CrackMapExec) (CME).
+
+
 
 ```console
 export KRB5CCNAME=skyler.knecht.ccache
@@ -20,36 +37,18 @@ export KRB5CCNAME=skyler.knecht.ccache
 
 To signal CME to use Kerberos authentication we must provide the command line argument, `-k`. 
 
+> We must always use the target's Fully Qualified Domain Name (FQDN) when authenticating with Kerberos.
+{: .prompt-warning }
+
 ```
-skyler@debian:~$ crackmapexec smb ws01.rayke.local -k
+skyler@attacker:~$ crackmapexec smb ws01.rayke.local -k
 SMB         ws01.rayke.local 445    WS01             [*] Windows 10.0 Build 19041 x64 (name:WS01) (domain:rayke.local) (signing:False) (SMBv1:False)
 ... 
 OSError: [Errno Connection error (RAYKE.LOCAL:88)]
 ```
 
-> We must always use the target's Fully Qualified Domain Name (FQDN) when authenticating with Kerberos.
-{: .prompt-warning }
+Unlike NTLM, we cannot use our credentials, the TGT, to directly authenticate to a service. Instead we need to use our TGT to obtain a Service Ticket (ST). CME identifies this an attempts to request a ST from the KDC. However, CME cannot locate the KDC and the authentication fails.
 
-Surprisingly, CME makes another request to the KDC to obtain additional information prior to authentication. Since we did not provide CME where to locate the KDC the authentication fails.
-
-## Why did this fail?
-
-When we requested a TGT, `getTGT.py` made an Authentication Service Request (AS-REQ) to the KDC. This request includes a Client Name (cname) and Service Name (sname). In this case the cname would be `skyler.knecht` and the service name would be `krbtgt/rayke.local`. 
-
-The KDC processes this information and determined that pre authentication is required, thus made an Authentication Service Response (AS-REP) with the error, `KRB5KDC_ERR_PREAUTH_REQUIRED`.
-
-Pre Authentication data (PA-data) is a timestamp encrypted with the client's kerberos secret, typically the user's password. 
-
-`getTGT.py` used the plaintext credentials we provided and made another AS-REQ with the PA-data appended. 
-
-The KDC processed the PA-authentication data by decrypting the timestamp using the client's kerberos secret.
-
-> Since a KDC requires access to the client's kerberos secret it is typically located on a Domain Controller. 
-{: .prompt-info }
-
-Upon successful decryption, The KDC made an Authentication Service Response (AS-REP) with a TGT and session key appended. `getTGT.py` processes this response and writes the ccache file, `skyler.knecht.ccache`, containing our TGT to disk.
-
-Unlike NTLM, we cannot use our credentials, the TGT, to directly authenticate to a service. Instead we need to use our TGT to obtain a Service Ticket (ST). CME identifies this an attempts to request a ST from the KDC. However, CME cannot locate the KDC and the authentication fails. 
 
 ## How do we obtain a Service Ticket?
 
@@ -66,7 +65,7 @@ getTGT.py rayke.local/skyler.knecht:Password1! -dc-ip 192.168.1.200 -service hos
 With new ccache file we can authenticate successfully. 
 
 ```
-skyler@debian:~$ crackmapexec smb ws01.rayke.local -k
+skyler@attacker:~$ crackmapexec smb ws01.rayke.local -k
 SMB         ws01.rayke.local 445    WS01             [*] Windows 10.0 Build 19041 x64 (name:WS01) (domain:rayke.local) (signing:False) (SMBv1:False)
 SMB         ws01.rayke.local 445    WS01             [+] rayke.local\skyler.knecht (Pwn3d!)
 ```
@@ -97,8 +96,8 @@ Once authenticated, the KDC will create a ST for the sname we provided and a ses
 `getTGT.py` processes this response and writes the ccache to disk. We can assign this to the `KRB5CCNAME` environment variable and successfully authenticate to the service. 
 
 ```
-skyler@debian:~$ export KRB5CCNAME=skyler.knecht@host_ws01.rayke.local@RAYKE.LOCAL.ccache
-skyler@debian:~$ crackmapexec smb ws01.rayke.local -k
+skyler@attacker:~$ export KRB5CCNAME=skyler.knecht@host_ws01.rayke.local@RAYKE.LOCAL.ccache
+skyler@attacker:~$ crackmapexec smb ws01.rayke.local -k
 SMB         ws01.rayke.local 445    WS01             [*] Windows 10.0 Build 19041 x64 (name:WS01) (domain:rayke.local) (signing:False) (SMBv1:False)
 SMB         ws01.rayke.local 445    WS01             [+] rayke.local\skyler.knecht (Pwn3d!)
 ```
@@ -106,7 +105,7 @@ SMB         ws01.rayke.local 445    WS01             [+] rayke.local\skyler.knec
 Thankfully, most tools will automate the ST-requesting process given a TGT and the location of the KDC. We can provide CME with the command line argument, `--kdcHost` to achieve this.
 
 ```
-skyler@debian:~$ crackmapexec smb ws01.rayke.local -k --kdcHost 192.168.1.200
+skyler@attacker:~$ crackmapexec smb ws01.rayke.local -k --kdcHost 192.168.1.200
 SMB         ws01.rayke.local 445    WS01             [*] Windows 10.0 Build 19041 x64 (name:WS01) (domain:rayke.local) (signing:False) (SMBv1:False)
 SMB         ws01.rayke.local 445    WS01             [+] rayke.local\skyler.knecht (Pwn3d!)
 ```
@@ -118,7 +117,3 @@ The Kerberos protocol provides a means of verifying the authenticity principals 
 The authenticator contains metadata such as a sequence number and is encrypted with the session key obtained from the TGS-REP. 
 
 The Application Server will decrypt the ST recovering the session key and the groups associated with the user. The Application Server will use the session key to decrypt the authenticator and recover the sequence number. If the sequence number has already been received the Application Server the request will be dropped. Otherwise, the Application Server will parse the user's groups and make an AS-REP either informing the user the status of their authorization.
-
-
-
-
