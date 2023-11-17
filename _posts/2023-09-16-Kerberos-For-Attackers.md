@@ -20,7 +20,7 @@ Pre Authentication data (PA-data) is a timestamp encrypted with the client's ker
 
 `getTGT.py` uses the plaintext credentials we provided and makes another AS-REQ with the PA-data appended. 
 
-The KDC processes the PA-authentication data by decrypting the timestamp using the client's kerberos secret.
+The KDC processes the PA-data by decrypting the timestamp using the client's kerberos secret.
 
 > Since a KDC requires access to the client's kerberos secret it is typically located on a Domain Controller. 
 {: .prompt-info }
@@ -47,14 +47,14 @@ SMB         ws01.rayke.local 445    WS01             [*] Windows 10.0 Build 1904
 OSError: [Errno Connection error (RAYKE.LOCAL:88)]
 ```
 
-Unlike NTLM, we cannot use our credentials, the TGT, to directly authenticate to a service. Instead we need to use our TGT to obtain a Service Ticket (ST). CME identifies this an attempts to request a ST from the KDC. However, CME cannot locate the KDC and the authentication fails.
+Unlike NTLM, we cannot use our credentials, the TGT, to directly authenticate to a service. Instead we need to use our TGT to obtain a Service Ticket (ST). This is why the credential is entitled, Ticket Granting Ticket. CME identifies this an attempts to request a ST from the KDC. However, CME cannot locate the KDC and the authentication fails.
 
 
 ## How do we obtain a Service Ticket?
 
 We can request a ST by making an AS-REQ with the sname set to the target service.
 
-Services are identified by their Service Principal Name (SPN). In this case we use `host/ws01.rayke.local` as this SPN is used to provide authentication to the SMB service. 
+Services are identified by their Service Principal Name (SPN). We will use `host/ws01.rayke.local` as this SPN is used to provide authentication to the SMB service. 
 
 `getTGT.py` permits us to make an AS-REQ with this configuration by providing the command line argument, `-service`.
 
@@ -70,7 +70,7 @@ SMB         ws01.rayke.local 445    WS01             [*] Windows 10.0 Build 1904
 SMB         ws01.rayke.local 445    WS01             [+] rayke.local\skyler.knecht (Pwn3d!)
 ```
 
-This is inefficient as we'll need to obtain a new TGT for every ST. This includes encountering the `KRB5KDC_ERR_PREAUTH_REQUIRED` error and encrypting a timestamp. 
+This technique of obtaining a ST is very inefficient as we'll need to obtain a new TGT per request. This includes encountering the `KRB5KDC_ERR_PREAUTH_REQUIRED` error and encrypting a timestamp. 
 
 Alternatively, we can negotiate with the Key Distribution Center's (KDCs) Ticket Granting Service (TGS) with a tool such as [getST.py](https://github.com/fortra/impacket/blob/master/examples/getST.py) from the Impacket suite.
 
@@ -116,4 +116,4 @@ The Kerberos protocol provides a means of verifying the authenticity principals 
 
 The authenticator contains metadata such as a sequence number and is encrypted with the session key obtained from the TGS-REP. 
 
-The Application Server will decrypt the ST recovering the session key and the groups associated with the user. The Application Server will use the session key to decrypt the authenticator and recover the sequence number. If the sequence number has already been received the Application Server the request will be dropped. Otherwise, the Application Server will parse the user's groups and make an AS-REP either informing the user the status of their authorization.
+The Application Server will decrypt the ST recovering the session key and the groups associated with the user. The Application Server will use the session key to decrypt the authenticator and recover the sequence number. If the sequence number has already been received by the Application Server the request will be dropped. Otherwise, the Application Server will parse the user's groups and make an AS-REP either informing the user the status of their authorization.
