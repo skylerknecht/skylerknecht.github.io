@@ -1,10 +1,10 @@
 As a domain user we need to access resources within the environment. These resources are available via services such as HTTP, SMB, and LDAP. Primarily, Active Directory (AD) uses Kerberos to manage authentication to these services. 
 
-## An Example That Fails
+## Example
 
 We're the domain user, `skyler.knecht@rayke.local`, and we would like to authenticate to the SMB service on `ws01.rayke.local`.
 
-We could use the NTLM protocol to authenticate with plaintext credentials, however, with Kerberos our credentials will be a Ticket Granting Ticket (TGT).
+Unlike other protocols such as NTLM, we cannot authenticate with a credential such as a username and password. Instead, we'll need to obtain Kerberos' credential, a Ticket Granting Ticket (TGT) and later a Service Ticket (ST).
 
 To obtain a TGT we must negotiate with a Key Distribution Center's (KDC) Authentication Service (AS). Thankfully a tool such as, [getTGT.py](https://github.com/fortra/impacket/blob/master/examples/getTGT.py), will automate the negotiation process.
 
@@ -12,13 +12,13 @@ To obtain a TGT we must negotiate with a Key Distribution Center's (KDC) Authent
 getTGT.py rayke.local/skyler.knecht:Password1! -dc-ip 192.168.1.200 
 ```
 
-The negotiation begins by first performing a Authentication Service Request (AS-REQ). This request includes a Client Name (cname) and Service Name (sname). In this case the cname would be `skyler.knecht` and the service name would be `krbtgt/rayke.local`. 
+`getTGT.py` initiates the negotiation by first performing a Authentication Service Request (AS-REQ). This request includes a Client Name (cname) and Service Name (sname). In this case the cname would be `skyler.knecht` and the service name would be `krbtgt/rayke.local`. 
 
 The KDC processes this information and determines that pre authentication is required, thus makes an Authentication Service Response (AS-REP) with the error, `KRB5KDC_ERR_PREAUTH_REQUIRED`.
 
 Pre Authentication data (PA-data) is a timestamp encrypted with the client's kerberos secret, typically the user's password. 
 
-`getTGT.py` uses the plaintext credentials we provided and makes another AS-REQ with the PA-data appended. 
+`getTGT.py` uses the username and password we provided and makes another AS-REQ with the PA-data appended. 
 
 The KDC processes the PA-data by decrypting the timestamp using the client's kerberos secret.
 
@@ -47,7 +47,7 @@ SMB         ws01.rayke.local 445    WS01             [*] Windows 10.0 Build 1904
 OSError: [Errno Connection error (RAYKE.LOCAL:88)]
 ```
 
-Unlike NTLM, we cannot use our credentials, the TGT, to directly authenticate to a service. Instead we need to use our TGT to obtain a Service Ticket (ST). This is why the credential is entitled, Ticket Granting Ticket. CME identifies this an attempts to request a ST from the KDC. However, CME cannot locate the KDC and the authentication fails.
+Like mentioned before, we cannot use our credentials, the TGT, to directly authenticate to a service. Instead we need to use our TGT to obtain a Service Ticket (ST). This is why the credential is entitled, Ticket Granting Ticket. CME identifies this an attempts to request a ST from the KDC. However, CME cannot locate the KDC and the authentication fails.
 
 
 ## How do we obtain a Service Ticket?
