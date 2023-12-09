@@ -1,8 +1,8 @@
 As a domain user we need to access resources within the environment. These resources are available via services such as HTTP, SMB, and LDAP. Primarily, Active Directory (AD) uses Kerberos to manage authentication to these services. 
 
-## Example
+Lets pretend we're the domain user, `skyler.knecht@rayke.local`, and we would like to authenticate to the SMB service on `ws01.rayke.local`.
 
-We're the domain user, `skyler.knecht@rayke.local`, and we would like to authenticate to the SMB service on `ws01.rayke.local`.
+## Obtaining a Ticket Granting Ticket
 
 Unlike other protocols such as NTLM, we cannot authenticate with a credential such as a username and password. Instead, we'll need to obtain Kerberos' credential, a Ticket Granting Ticket (TGT) and later a Service Ticket (ST).
 
@@ -50,7 +50,7 @@ OSError: [Errno Connection error (RAYKE.LOCAL:88)]
 Like mentioned before, we cannot use our credentials, the TGT, to directly authenticate to a service. Instead we need to use our TGT to obtain a Service Ticket (ST). This is why the credential is entitled, Ticket Granting Ticket. CME identifies this an attempts to request a ST from the KDC. However, CME cannot locate the KDC and the authentication fails.
 
 
-## How do we obtain a Service Ticket?
+## Obtaining a Service Ticket
 
 We can request a ST by making an AS-REQ with the sname set to the target service.
 
